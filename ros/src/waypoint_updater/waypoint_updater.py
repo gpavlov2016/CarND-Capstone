@@ -52,6 +52,17 @@ class WaypointUpdater(object):
         # self.sum_wp_time = 0.0
         # self.count_wp_time = 0
 
+        # Current waypoint id.
+        self.cur_wp = None
+
+        # Current car's pose.
+        self.cur_pose = None
+
+        self.tl_config = {
+            "min_dist": 50, # In meters
+            "a": -10,
+        }
+
         rospy.spin()
 
     def pose_cb(self, msg):
@@ -69,12 +80,12 @@ class WaypointUpdater(object):
             float64 z
             float64 w
         """
-        pose = msg.pose
-        pos = pose.position
-        quat = PyKDL.Rotation.Quaternion(pose.orientation.x,
-                                         pose.orientation.y,
-                                         pose.orientation.z,
-                                         pose.orientation.w)
+        self.pose = msg.pose
+        pos = self.pose.position
+        quat = PyKDL.Rotation.Quaternion(self.pose.orientation.x,
+                                         self.pose.orientation.y,
+                                         self.pose.orientation.z,
+                                         self.pose.orientation.w)
         orient = quat.GetRPY()
         yaw = orient[2]
 
@@ -86,7 +97,7 @@ class WaypointUpdater(object):
             # rospy.loginfo("curyaw: {}".format(yaw))
 
             # start = time.time()
-            cur_wp_id = self.get_closest_waypoint(pose)
+            self.cur_wp = self.get_closest_waypoint(self.pose)
             # end = time.time()
             # self.sum_wp_time += (end - start)
             # self.count_wp_time += 1
@@ -95,10 +106,10 @@ class WaypointUpdater(object):
 
             lane = Lane()
             for i, wp in enumerate(self.waypoints[
-                cur_wp_id%n:(cur_wp_id+LOOKAHEAD_WPS)%n]):
+                self.cur_wp%n:(self.cur_wp+LOOKAHEAD_WPS)%n]):
 
                 if i == 0:
-                    idx = cur_wp_id + i
+                    idx = self.cur_wp + i
 
                     # Calculates yaw rate
                     next_wp = self.waypoints[(idx+1)%n]
@@ -126,10 +137,11 @@ class WaypointUpdater(object):
         self.waypoints_header = waypoints.header
 
     def traffic_cb(self, msg):
-        tf_wp_id = msg.data
-        if tf_wp_id > -1:
-            pass
-        rospy.loginfo("tf_wp_id: {}".format(tf_wp_id))
+        tl_wp = msg.data
+        # `tl_wp >= self.cur_wp` ensures traffic light is in front of the car.
+        if tl_wp > -1 and tl_wp >= self.cur_wp:
+            self.realize_tl_action(tl_wp)
+        rospy.loginfo("tl_wp: {}".format(tl_wp))
 
     def obstacle_cb(self, msg):
         # TODO: Callback for /obstacle_waypoint message. We will implement it later
@@ -219,8 +231,19 @@ class WaypointUpdater(object):
         """
         return math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2 + (a.z-b.z)**2)
 
-    def trycall():
-        return 1;
+    def realize_tl_action(self, tl_wp):
+        # TODO
+        # if pos_distance(self.pose, self.waypoints[tl_wp].pose.pose) < \
+        #    self.tl_config["min_dist"]:
+        #     # Find x number of waypoints before tl_wp, and then gradually
+        #     # lower the speed
+
+        #     # remaining distance
+        #     rem_dist = self.tl_config["min_dist"]
+        #     while rem_dist > 0:
+        #         dist = 
+        #         rem_dist - dist
+        pass
 
 if __name__ == '__main__':
     try:

@@ -1,13 +1,16 @@
 #!/usr/bin/env python
+import math
 import rospy
 from std_msgs.msg import Int32
-from geometry_msgs.msg import PoseStamped, Pose
+from geometry_msgs.msg import PoseStamped, Pose, Point
 from styx_msgs.msg import TrafficLightArray, TrafficLight
 from styx_msgs.msg import Lane
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 from light_classification.tl_classifier import TLClassifier
 import tf
+#from math import inf
+import numpy as np
 import cv2
 import yaml
 import math
@@ -23,7 +26,9 @@ class TLDetector(object):
         self.camera_image = None
         self.lights = []
 
+        #  can be used used to determine the vehicle's location.
         sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
+        # provides the complete list of waypoints for the course.
         sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
 
         '''
@@ -34,6 +39,8 @@ class TLDetector(object):
         rely on the position of the light and the camera image to predict it.
         '''
         sub3 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb)
+
+        # provides an image stream from the car's camera. These images are used to determine the color of upcoming traffic lights.
         sub6 = rospy.Subscriber('/image_color', Image, self.image_cb)
 
         config_string = rospy.get_param("/traffic_light_config")
@@ -50,6 +57,11 @@ class TLDetector(object):
         self.last_wp = -1
         self.state_count = 0
 
+        self.closest_waypoint = 0
+
+        self.IGNORE_DISTANCE_LIGHT = 90.0
+        self.old_stop_line_pos_wp = []
+        self.last_car_position = 0
         rospy.spin()
 
     def pose_cb(self, msg):
@@ -178,8 +190,15 @@ class TLDetector(object):
         image_width = self.config['camera_info']['image_width']
         image_height = self.config['camera_info']['image_height']
 
+        # image Center
+        cx = image_width / 2.0
+        cy = image_height / 2.0
+
+
         # get transform between pose of camera and world frame
         trans = None
+        rot = None
+
         try:
             now = rospy.Time.now()
             self.listener.waitForTransform("/base_link",
@@ -190,10 +209,20 @@ class TLDetector(object):
         except (tf.Exception, tf.LookupException, tf.ConnectivityException):
             rospy.logerr("Failed to find camera to map transform")
 
-        #TODO Use tranform and rotation to calculate 2D position of light in image
+        # Use tranform and rotation to calculate 2D position of light in image
 
-        x = 0
-        y = 0
+        # Assuming we can use the translation and rotation matrices without modifying them.
+        A = np.matrix([[fx, 0,  image_width / 2.0],
+                       [0,  fy, image_height / 2.0],
+                       [0,  0,  1]])
+
+        #Guy TODO: remover after rot and trans are correctly aquired
+        return (0,0)
+
+        points = cv2.projectPoints([[point_in_world.x, point_in_world.y, point_in_world.z]],
+                          rot, trans, A, np.float64([]))
+        x = points[0][0]
+        y = points[0][1]
 
         return (x, y)
 
@@ -213,9 +242,16 @@ class TLDetector(object):
 
         cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
 
-        x, y = self.project_to_image_plane(light.pose.pose.position)
+        pt = Point()
+        pt.x = light.pose.pose.position.x
+        pt.y = light.pose.pose.position.y
+        pt.z = 0
+        x, y = self.project_to_image_plane(pt)
 
-        #TODO use light location to zoom in on traffic light in image
+        # TODO: Figure out an appropriate crop size.
+        crop_width_x = 100
+        crop_width_y = 100
+        cropped = cv_image[y:y+crop_width_x, x:x+crop_width_x]
 
         #Get classification
         # return self.light_classifier.get_classification(cv_image)
@@ -224,11 +260,9 @@ class TLDetector(object):
     def process_traffic_lights(self):
         """Finds closest visible traffic light, if one exists, and determines its
             location and color
-
         Returns:
             int: index of waypoint closes to the upcoming stop line for a traffic light (-1 if none exists)
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
-
         """
         light = None
 
