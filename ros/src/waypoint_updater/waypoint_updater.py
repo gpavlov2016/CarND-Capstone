@@ -8,6 +8,9 @@ import tf
 import math
 import PyKDL
 from copy import deepcopy
+
+import time
+
 # from scipy.interpolate import interp1d
 
 '''
@@ -47,6 +50,10 @@ class WaypointUpdater(object):
         # To avoid publishing same points multiple times.
         self.published_wp = None
 
+        # For benchmarking closest wp code 
+        # self.sum_wp_time = 0.0
+        # self.count_wp_time = 0
+
         rospy.spin()
 
     def pose_cb(self, msg):
@@ -80,7 +87,13 @@ class WaypointUpdater(object):
 
             # rospy.loginfo("curyaw: {}".format(yaw))
 
-            cur_wp_id = self.closest_waypoint(pos, yaw)
+            # start = time.time()
+            cur_wp_id = self.get_closest_waypoint(pose)
+            # end = time.time()
+            # self.sum_wp_time += (end - start)
+            # self.count_wp_time += 1
+            # avg_wp_time = self.sum_wp_time / self.count_wp_time
+            # rospy.loginfo("m_id time: {}".format(avg_wp_time))
 
             lane = Lane()
             for i, wp in enumerate(self.waypoints[
@@ -136,49 +149,73 @@ class WaypointUpdater(object):
             wp1 = i
         return dist
 
-    def closest_waypoint(self, position, yaw):
-        """ Find the closest waypoint from a given pose
-        
+    def get_closest_waypoint(self, pose):
+        """Identifies the closest path waypoint to the given position
+            https://en.wikipedia.org/wiki/Closest_pair_of_points_problem
         Args:
-            position (geometry_msgs/Point): Position from pose returned from `pose_cb()` method.
-            yaw (float): The car's yaw.
-
-        Return:
-            int: ID of waypoint.
+            pose (Pose): position to match a waypoint to
+        Returns:
+            int: index of the closest waypoint in self.waypoints
         """
 
-        pos_threshold = 0.01
-        yaw_threshold = 0.01
+        def dl(a, b):
+            return math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2)
 
-        min_dist = 10.0
-        min_id = None
+        pos = pose.position
+        l_id = 0
+        r_id = len(self.waypoints) - 1
+        m_id = len(self.waypoints)-1
 
-        # TODO: May need to find a faster way to find closest waypoint.
-        for idx, wp in enumerate(self.waypoints):
-            pos_dist = self.pos_distance(wp.pose.pose.position,
-                                    position)
-            # quat = PyKDL.Rotation.Quaternion(wp.pose.pose.orientation.x,
-            #                                  wp.pose.pose.orientation.y,
-            #                                  wp.pose.pose.orientation.z,
-            #                                  wp.pose.pose.orientation.w)
-            # orient = quat.GetRPY()
+        while l_id < r_id:
+            ldist = dl(self.waypoints[l_id].pose.pose.position, pos)
+            rdist = dl(self.waypoints[r_id].pose.pose.position, pos)
+            xmid = (l_id + r_id) // 2
+            mdist = dl(self.waypoints[xmid].pose.pose.position, pos)
 
-            # yaw_dist = abs(orient[2] - yaw)
-            # comb_dist = (pos_dist + yaw_dist)
-            # if (pos_dist <= pos_threshold and yaw_dist <= yaw_threshold):
-            #     return idx
-            # else:
-            #     if comb_dist < min_dist:
-            #         min_dist = comb_dist
-            #         min_id = idx
+            closest_dist = ldist
+            m_id = l_id
+            if mdist < closest_dist:
+                closest_dist = mdist
+                m_id = xmid
+            if rdist < closest_dist:
+                closest_dist = rdist
+                m_id = r_id
 
-            if (pos_dist <= pos_threshold):
-                return idx
-            else:
-                if pos_dist < min_dist:
-                    min_dist = pos_dist
-                    min_id = idx
-        return min_id
+            # If l_id is right before xmid and xmid is right before r_id,
+            # then xmid is the closest waypoint
+            if l_id == xmid -1 and xmid == r_id -1:
+                break
+
+            # c: car
+            # l: left point
+            # r: right point
+            # m: xmid
+            # *: closest waypoint
+            if rdist < mdist:
+                if ldist < rdist:
+                    # l--c----r--m
+                    r_id = xmid - 1
+                else:
+                    # l----c--r--m
+                    l_id = xmid + 1
+
+            elif mdist < closest_dist:
+                # l--c--m--*--r
+                l_id = xmid-1
+            elif mdist > closest_dist :
+                # l--c--*--m--r
+                r_id = xmid+1
+
+            elif mdist == closest_dist:
+                # ?-cm-?
+                if ldist < rdist:
+                    # l--cm---r
+                    r_id = xmid + (r_id - xmid) // 2
+                elif rdist < ldist:
+                    # l---cm--r
+                    l_id = xmid - (xmid - l_id) // 2
+
+        return m_id
 
     def pos_distance(self, a, b):
         """ Distance between two positions
