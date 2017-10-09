@@ -3,6 +3,7 @@
 import rospy
 from geometry_msgs.msg import PoseStamped
 from styx_msgs.msg import Lane, Waypoint
+from std_msgs.msg import Int32
 import tf
 
 import math
@@ -37,12 +38,9 @@ class WaypointUpdater(object):
 
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
-
-        # TODO: Add a subscriber for /traffic_waypoint and /obstacle_waypoint below
+        rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
 
         self.final_waypoints_pub = rospy.Publisher('/final_waypoints', Lane, queue_size=1)
-
-        # TODO: Add other member variables you need below
 
         self.waypoints = None
         self.waypoints_header = None
@@ -128,8 +126,10 @@ class WaypointUpdater(object):
         self.waypoints_header = waypoints.header
 
     def traffic_cb(self, msg):
-        # TODO: Callback for /traffic_waypoint message. Implement
-        pass
+        tf_wp_id = msg.data
+        if tf_wp_id > -1:
+            pass
+        rospy.loginfo("tf_wp_id: {}".format(tf_wp_id))
 
     def obstacle_cb(self, msg):
         # TODO: Callback for /obstacle_waypoint message. We will implement it later
@@ -158,19 +158,16 @@ class WaypointUpdater(object):
             int: index of the closest waypoint in self.waypoints
         """
 
-        def dl(a, b):
-            return math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2)
-
         pos = pose.position
         l_id = 0
         r_id = len(self.waypoints) - 1
         m_id = len(self.waypoints)-1
 
         while l_id < r_id:
-            ldist = dl(self.waypoints[l_id].pose.pose.position, pos)
-            rdist = dl(self.waypoints[r_id].pose.pose.position, pos)
+            ldist = self.pos_distance(self.waypoints[l_id].pose.pose.position, pos)
+            rdist = self.pos_distance(self.waypoints[r_id].pose.pose.position, pos)
             xmid = (l_id + r_id) // 2
-            mdist = dl(self.waypoints[xmid].pose.pose.position, pos)
+            mdist = self.pos_distance(self.waypoints[xmid].pose.pose.position, pos)
 
             closest_dist = ldist
             m_id = l_id
@@ -220,7 +217,7 @@ class WaypointUpdater(object):
     def pos_distance(self, a, b):
         """ Distance between two positions
         """
-        return math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2)
+        return math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2 + (a.z-b.z)**2)
 
     def trycall():
         return 1;
