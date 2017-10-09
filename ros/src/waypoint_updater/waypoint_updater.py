@@ -25,11 +25,7 @@ as well as to verify your TL classifier.
 TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
-# Number of waypoints to publish. Setting this number too low will cause the car
-# (e.g. 1 or 2) to pass future waypoints without knowing what to do next.
-LOOKAHEAD_WPS = 2
-
-FINAL_WPS = 20
+LOOKAHEAD_WPS = 12
 
 
 class WaypointUpdater(object):
@@ -77,7 +73,6 @@ class WaypointUpdater(object):
         orient = quat.GetRPY()
         yaw = orient[2]
 
-
         if self.waypoints is not None:
             # For circular id i.e. to keep from breaking when
             # `(cur_wp_id + LOOKAHEAD_WPS) > len(self.waypoints)`
@@ -91,32 +86,24 @@ class WaypointUpdater(object):
             for i, wp in enumerate(self.waypoints[
                 cur_wp_id%n:(cur_wp_id+LOOKAHEAD_WPS)%n]):
 
-                idx = cur_wp_id + i
-                self.set_waypoint_velocity(wp, 20)
+                if i == 0:
+                    idx = cur_wp_id + i
 
-                # Calculates yaw rate
-                next_wp = self.waypoints[(idx+1)%n]
-                next_x = next_wp.pose.pose.position.x
-                next_y = next_wp.pose.pose.position.y
+                    # Calculates yaw rate
+                    next_wp = self.waypoints[(idx+1)%n]
+                    next_x = next_wp.pose.pose.position.x
+                    next_y = next_wp.pose.pose.position.y
 
-                quat = PyKDL.Rotation.Quaternion(next_wp.pose.pose.orientation.x,
-                                                 next_wp.pose.pose.orientation.y,
-                                                 next_wp.pose.pose.orientation.z,
-                                                 next_wp.pose.pose.orientation.w)
-                next_orient = quat.GetRPY()
-                next_yaw = next_orient[2]
+                    quat = PyKDL.Rotation.Quaternion(next_wp.pose.pose.orientation.x,
+                                                     next_wp.pose.pose.orientation.y,
+                                                     next_wp.pose.pose.orientation.z,
+                                                     next_wp.pose.pose.orientation.w)
+                    next_orient = quat.GetRPY()
+                    next_yaw = next_orient[2]
 
-                yaw_dist = next_yaw - yaw
+                    yaw_dist = next_yaw - yaw
 
-                # rospy.loginfo("curxy: ({}, {}), nextxy: ({}, {}), dist: {}".format(
-                #     pos.x, pos.y, next_x, next_y,
-                #     self.pos_distance(next_wp.pose.pose.position, pos)
-                #     ))
-                # rospy.loginfo("curyaw: {}, nextyaw: {}, diff: {} wp: {}".format(
-                #     math.degrees(yaw), math.degrees(next_yaw),
-                #     math.degrees(yaw_dist), cur_wp_id))
-
-                wp = self.set_waypoint_yawrate(wp, yaw_dist)
+                    self.set_waypoint_velocity(wp, 10, yaw_dist)
 
                 lane.waypoints.append(wp)
 
@@ -138,15 +125,9 @@ class WaypointUpdater(object):
     def get_waypoint_velocity(self, waypoint):
         return waypoint.twist.twist.linear.x
 
-    def set_waypoint_velocity(self, waypoint, velocity):
-        waypoint.twist.twist.linear.x = velocity
-
-    def set_waypoint_yawrate(self, waypoint, yawrate):
-        rospy.loginfo("set angular z to: {}".format(yawrate))
-        waypoint.twist.twist.angular.z = yawrate
-        rospy.loginfo("new angular: {}".format(waypoint.twist.twist.angular))
-        rospy.loginfo("new angular.z: {}".format(waypoint.twist.twist.angular.z))
-        return waypoint
+    def set_waypoint_velocity(self, waypoint, velocity, yaw):
+        waypoint.twist.twist.linear.x = velocity * math.cos(yaw)
+        waypoint.twist.twist.linear.z = velocity * math.sin(yaw)
 
     def distance(self, waypoints, wp1, wp2):
         dist = 0
