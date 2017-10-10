@@ -3,11 +3,15 @@
 import rospy
 from geometry_msgs.msg import PoseStamped
 from styx_msgs.msg import Lane, Waypoint
+from std_msgs.msg import Int32
 import tf
 
 import math
 import PyKDL
 from copy import deepcopy
+
+import time
+
 # from scipy.interpolate import interp1d
 
 '''
@@ -25,11 +29,7 @@ as well as to verify your TL classifier.
 TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 '''
 
-# Number of waypoints to publish. Setting this number too low will cause the car
-# (e.g. 1 or 2) to pass future waypoints without knowing what to do next.
-LOOKAHEAD_WPS = 2
-
-FINAL_WPS = 20
+LOOKAHEAD_WPS = 12
 
 
 class WaypointUpdater(object):
@@ -38,18 +38,30 @@ class WaypointUpdater(object):
 
         rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
         rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
-
-        # TODO: Add a subscriber for /traffic_waypoint and /obstacle_waypoint below
+        rospy.Subscriber('/traffic_waypoint', Int32, self.traffic_cb)
 
         self.final_waypoints_pub = rospy.Publisher('/final_waypoints', Lane, queue_size=1)
-
-        # TODO: Add other member variables you need below
 
         self.waypoints = None
         self.waypoints_header = None
 
         # To avoid publishing same points multiple times.
         self.published_wp = None
+
+        # For benchmarking closest wp code 
+        # self.sum_wp_time = 0.0
+        # self.count_wp_time = 0
+
+        # Current waypoint id.
+        self.cur_wp = None
+
+        # Current car's pose.
+        self.cur_pose = None
+
+        self.tl_config = {
+            "min_dist": 50, # In meters
+            "a": -10,
+        }
 
         rospy.spin()
 
@@ -68,15 +80,14 @@ class WaypointUpdater(object):
             float64 z
             float64 w
         """
-        pose = msg.pose
-        pos = pose.position
-        quat = PyKDL.Rotation.Quaternion(pose.orientation.x,
-                                         pose.orientation.y,
-                                         pose.orientation.z,
-                                         pose.orientation.w)
+        self.pose = msg.pose
+        pos = self.pose.position
+        quat = PyKDL.Rotation.Quaternion(self.pose.orientation.x,
+                                         self.pose.orientation.y,
+                                         self.pose.orientation.z,
+                                         self.pose.orientation.w)
         orient = quat.GetRPY()
         yaw = orient[2]
-
 
         if self.waypoints is not None:
             # For circular id i.e. to keep from breaking when
@@ -85,38 +96,36 @@ class WaypointUpdater(object):
 
             # rospy.loginfo("curyaw: {}".format(yaw))
 
-            cur_wp_id = self.closest_waypoint(pos, yaw)
+            # start = time.time()
+            self.cur_wp = self.get_closest_waypoint(self.pose)
+            # end = time.time()
+            # self.sum_wp_time += (end - start)
+            # self.count_wp_time += 1
+            # avg_wp_time = self.sum_wp_time / self.count_wp_time
+            # rospy.loginfo("m_id time: {}".format(avg_wp_time))
 
             lane = Lane()
             for i, wp in enumerate(self.waypoints[
-                cur_wp_id%n:(cur_wp_id+LOOKAHEAD_WPS)%n]):
+                self.cur_wp%n:(self.cur_wp+LOOKAHEAD_WPS)%n]):
 
-                idx = cur_wp_id + i
-                self.set_waypoint_velocity(wp, 20)
+                if i == 0:
+                    idx = self.cur_wp + i
 
-                # Calculates yaw rate
-                next_wp = self.waypoints[(idx+1)%n]
-                next_x = next_wp.pose.pose.position.x
-                next_y = next_wp.pose.pose.position.y
+                    # Calculates yaw rate
+                    next_wp = self.waypoints[(idx+1)%n]
+                    next_x = next_wp.pose.pose.position.x
+                    next_y = next_wp.pose.pose.position.y
 
-                quat = PyKDL.Rotation.Quaternion(next_wp.pose.pose.orientation.x,
-                                                 next_wp.pose.pose.orientation.y,
-                                                 next_wp.pose.pose.orientation.z,
-                                                 next_wp.pose.pose.orientation.w)
-                next_orient = quat.GetRPY()
-                next_yaw = next_orient[2]
+                    quat = PyKDL.Rotation.Quaternion(next_wp.pose.pose.orientation.x,
+                                                     next_wp.pose.pose.orientation.y,
+                                                     next_wp.pose.pose.orientation.z,
+                                                     next_wp.pose.pose.orientation.w)
+                    next_orient = quat.GetRPY()
+                    next_yaw = next_orient[2]
 
-                yaw_dist = next_yaw - yaw
+                    yaw_dist = next_yaw - yaw
 
-                # rospy.loginfo("curxy: ({}, {}), nextxy: ({}, {}), dist: {}".format(
-                #     pos.x, pos.y, next_x, next_y,
-                #     self.pos_distance(next_wp.pose.pose.position, pos)
-                #     ))
-                # rospy.loginfo("curyaw: {}, nextyaw: {}, diff: {} wp: {}".format(
-                #     math.degrees(yaw), math.degrees(next_yaw),
-                #     math.degrees(yaw_dist), cur_wp_id))
-
-                wp = self.set_waypoint_yawrate(wp, yaw_dist)
+                    self.set_waypoint_velocity(wp, 10, yaw_dist)
 
                 lane.waypoints.append(wp)
 
@@ -128,8 +137,11 @@ class WaypointUpdater(object):
         self.waypoints_header = waypoints.header
 
     def traffic_cb(self, msg):
-        # TODO: Callback for /traffic_waypoint message. Implement
-        pass
+        tl_wp = msg.data
+        # `tl_wp >= self.cur_wp` ensures traffic light is in front of the car.
+        if tl_wp > -1 and tl_wp >= self.cur_wp:
+            self.realize_tl_action(tl_wp)
+        rospy.loginfo("tl_wp: {}".format(tl_wp))
 
     def obstacle_cb(self, msg):
         # TODO: Callback for /obstacle_waypoint message. We will implement it later
@@ -138,15 +150,9 @@ class WaypointUpdater(object):
     def get_waypoint_velocity(self, waypoint):
         return waypoint.twist.twist.linear.x
 
-    def set_waypoint_velocity(self, waypoint, velocity):
-        waypoint.twist.twist.linear.x = velocity
-
-    def set_waypoint_yawrate(self, waypoint, yawrate):
-        rospy.loginfo("set angular z to: {}".format(yawrate))
-        waypoint.twist.twist.angular.z = yawrate
-        rospy.loginfo("new angular: {}".format(waypoint.twist.twist.angular))
-        rospy.loginfo("new angular.z: {}".format(waypoint.twist.twist.angular.z))
-        return waypoint
+    def set_waypoint_velocity(self, waypoint, velocity, yaw):
+        waypoint.twist.twist.linear.x = velocity * math.cos(yaw)
+        waypoint.twist.twist.linear.z = velocity * math.sin(yaw)
 
     def distance(self, waypoints, wp1, wp2):
         dist = 0
@@ -155,57 +161,89 @@ class WaypointUpdater(object):
             wp1 = i
         return dist
 
-    def closest_waypoint(self, position, yaw):
-        """ Find the closest waypoint from a given pose
-        
+    def get_closest_waypoint(self, pose):
+        """Identifies the closest path waypoint to the given position
+            https://en.wikipedia.org/wiki/Closest_pair_of_points_problem
         Args:
-            position (geometry_msgs/Point): Position from pose returned from `pose_cb()` method.
-            yaw (float): The car's yaw.
-
-        Return:
-            int: ID of waypoint.
+            pose (Pose): position to match a waypoint to
+        Returns:
+            int: index of the closest waypoint in self.waypoints
         """
 
-        pos_threshold = 0.01
-        yaw_threshold = 0.01
+        pos = pose.position
+        l_id = 0
+        r_id = len(self.waypoints) - 1
+        m_id = len(self.waypoints)-1
 
-        min_dist = 10.0
-        min_id = None
+        while l_id < r_id:
+            ldist = self.pos_distance(self.waypoints[l_id].pose.pose.position, pos)
+            rdist = self.pos_distance(self.waypoints[r_id].pose.pose.position, pos)
+            xmid = (l_id + r_id) // 2
+            mdist = self.pos_distance(self.waypoints[xmid].pose.pose.position, pos)
 
-        # TODO: May need to find a faster way to find closest waypoint.
-        for idx, wp in enumerate(self.waypoints):
-            pos_dist = self.pos_distance(wp.pose.pose.position,
-                                    position)
-            # quat = PyKDL.Rotation.Quaternion(wp.pose.pose.orientation.x,
-            #                                  wp.pose.pose.orientation.y,
-            #                                  wp.pose.pose.orientation.z,
-            #                                  wp.pose.pose.orientation.w)
-            # orient = quat.GetRPY()
+            closest_dist = ldist
+            m_id = l_id
+            if mdist < closest_dist:
+                closest_dist = mdist
+                m_id = xmid
+            if rdist < closest_dist:
+                closest_dist = rdist
+                m_id = r_id
 
-            # yaw_dist = abs(orient[2] - yaw)
-            # comb_dist = (pos_dist + yaw_dist)
-            # if (pos_dist <= pos_threshold and yaw_dist <= yaw_threshold):
-            #     return idx
-            # else:
-            #     if comb_dist < min_dist:
-            #         min_dist = comb_dist
-            #         min_id = idx
+            # If l_id is right before xmid and xmid is right before r_id,
+            # then xmid is the closest waypoint
+            if l_id == xmid -1 and xmid == r_id -1:
+                break
 
-            if (pos_dist <= pos_threshold):
-                return idx
-            else:
-                if pos_dist < min_dist:
-                    min_dist = pos_dist
-                    min_id = idx
-        return min_id
+            # c: car
+            # l: left point
+            # r: right point
+            # m: xmid
+            # *: closest waypoint
+            if rdist < mdist:
+                if ldist < rdist:
+                    # l--c----r--m
+                    r_id = xmid - 1
+                else:
+                    # l----c--r--m
+                    l_id = xmid + 1
+
+            elif mdist < closest_dist:
+                # l--c--m--*--r
+                l_id = xmid-1
+            elif mdist > closest_dist :
+                # l--c--*--m--r
+                r_id = xmid+1
+
+            elif mdist == closest_dist:
+                # ?-cm-?
+                if ldist < rdist:
+                    # l--cm---r
+                    r_id = xmid + (r_id - xmid) // 2
+                elif rdist < ldist:
+                    # l---cm--r
+                    l_id = xmid - (xmid - l_id) // 2
+
+        return m_id
 
     def pos_distance(self, a, b):
         """ Distance between two positions
         """
-        return math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2)
+        return math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2 + (a.z-b.z)**2)
 
-    def trycall():
-        return 1;
+    def realize_tl_action(self, tl_wp):
+        # TODO
+        # if pos_distance(self.pose, self.waypoints[tl_wp].pose.pose) < \
+        #    self.tl_config["min_dist"]:
+        #     # Find x number of waypoints before tl_wp, and then gradually
+        #     # lower the speed
+
+        #     # remaining distance
+        #     rem_dist = self.tl_config["min_dist"]
+        #     while rem_dist > 0:
+        #         dist = 
+        #         rem_dist - dist
+        pass
 
 if __name__ == '__main__':
     try:

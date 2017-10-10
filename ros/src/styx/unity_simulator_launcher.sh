@@ -16,4 +16,5 @@ if [ ! -f "$USER_PROFILE" ];
     unity_path=$(cat "$USER_PROFILE")
 fi
 
+echo $unity_path
 $unity_path
