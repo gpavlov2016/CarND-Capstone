@@ -266,31 +266,32 @@ class TLDetector(object):
         """
         light = None
 
-        # List of positions that correspond to the line to stop in front of for a given intersection
-        stop_line_positions = self.config['stop_line_positions']
-        if(self.pose and self.waypoints is not None):
-            car_position = self.get_closest_waypoint(self.pose.pose)
+        if self.waypoints is not None:
+            # List of positions that correspond to the line to stop in front of for a given intersection
+            stop_line_positions = self.config['stop_line_positions']
+            if(self.pose):
+                car_position = self.get_closest_waypoint(self.pose.pose)
 
-        #TODO find the closest visible traffic light (if one exists)
-        light = self.get_closest_light(self.pose.pose)
+            #TODO find the closest visible traffic light (if one exists)
+            light = self.get_closest_light(self.pose.pose)
 
-        if light:
-            light_wp = self.get_closest_waypoint(light.pose.pose)
-            state = self.get_light_state(light)
+            if light:
+                light_wp = self.get_closest_waypoint(light.pose.pose)
+                state = self.get_light_state(light)
 
-            # Debugging traffic light:
-            #
-            # rospy.loginfo("light_xyz: ({}, {}, {}), wp_xyz({}): ({}, {}, {})".format(
-            #     light.pose.pose.position.x,
-            #     light.pose.pose.position.y,
-            #     light.pose.pose.position.z,
-            #     light_wp,
-            #     self.waypoints[light_wp].pose.pose.position.x,
-            #     self.waypoints[light_wp].pose.pose.position.y,
-            #     self.waypoints[light_wp].pose.pose.position.z
-            # ))
-            return light_wp, state
-        self.waypoints = None
+                # Debugging traffic light:
+                #
+                # rospy.loginfo("light_xyz: ({}, {}, {}), wp_xyz({}): ({}, {}, {})".format(
+                #     light.pose.pose.position.x,
+                #     light.pose.pose.position.y,
+                #     light.pose.pose.position.z,
+                #     light_wp,
+                #     self.waypoints[light_wp].pose.pose.position.x,
+                #     self.waypoints[light_wp].pose.pose.position.y,
+                #     self.waypoints[light_wp].pose.pose.position.z
+                # ))
+                return light_wp, state
+            self.waypoints = None
         return -1, TrafficLight.UNKNOWN
 
     def get_closest_light(self, pose):
