@@ -82,10 +82,9 @@ class WaypointUpdater(object):
         }
 
         self.config = {
-            "v": mph2mps(10)
+            "v": mph2mps(10),
+            "v1": mph2mps(20)
         }
-
-        self.avg_latency = 0.02 # seconds
 
         rospy.spin()
 
@@ -117,7 +116,7 @@ class WaypointUpdater(object):
         self.yaw = orient[2]
 
         rospy.loginfo("start pose_cb")
-        self.drive
+        self.drive()
 
     def waypoints_cb(self, waypoints):
         self.waypoints = waypoints.waypoints
@@ -133,7 +132,7 @@ class WaypointUpdater(object):
         if tl_wp > -1 and tl_wp > self.cur_wp:
             self.redlight_wp = tl_wp
             rospy.loginfo("redlight_wp: {} cur_wp: {}".format(self.redlight_wp, self.cur_wp))
-        self.drive()
+        # self.drive()
 
     def obstacle_cb(self, msg):
         # TODO: Callback for /obstacle_waypoint message. We will implement it later
@@ -169,12 +168,18 @@ class WaypointUpdater(object):
             ))
 
             if rl_is_visible:
+            # if False:
                 wps_to_rl = self.wp_to_redlight(redlight_wp)
                 rospy.loginfo("wps_to_rl: {} ({})".format(
                     wps_to_rl,
                     len(wps_to_rl)
                 ))
-                self.full_brake(wps_to_rl)
+                if len(wps_to_rl) == 0:
+                    # This means the light has turned red, but the car is still in the
+                    # intersection. Go full speed ahead in this case.
+                    self.set_waypoint_velocity(first_wp_obj, mps2mph(self.config["v1"]))
+                else:
+                    self.full_brake(wps_to_rl)
             else:
                 self.set_waypoint_velocity(first_wp_obj, mps2mph(self.config["v"]))
 
@@ -332,28 +337,25 @@ class WaypointUpdater(object):
     def wp_to_redlight(self, redlight_wp):
         """ Get a list of waypoint ids from the current
             position to the closest red light - offset.
-
-        Note that it is possible that we are at the last waypoint and
-        need to cycle back to the first waypoint, that's why we use a
-        list of ids.
         
         Args:
             redlight_wp (int): ID of red light waypoint. We use variable here
                                instead of getting it directly from self.redlight_wp
-                               since self.redlight_wp could be suddenly set to null
+                               since self.redlight_wp could be suddenly be null
                                from traffic_cb.
         Returns:
             list (int): List of waypoint ids.
         """
         i = self.cur_wp
-        n = self.total_wp
-        rospy.loginfo("self.redlight_wp: {}".format(redlight_wp))
         rl = redlight_wp - self.tl_config["wp_offset"]
         result = []
-        while i != rl:
-            result.append(i%n)
-            i += 1
-        result.append(i%n)
+
+        # If rl becomes less than cur position due to offset
+        if rl <= i and redlight_wp > i:
+            pass
+        else:
+            for i in range(i, rl):
+                result.append(i)
         return result
 
     def full_brake(self, wps):

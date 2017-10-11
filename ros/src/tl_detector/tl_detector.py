@@ -196,6 +196,8 @@ class TLDetector(object):
         image_width = self.config['camera_info']['image_width']
         image_height = self.config['camera_info']['image_height']
 
+        trans = None
+
         try:
             now = rospy.Time.now()
             self.listener.waitForTransform("/base_link",
@@ -207,7 +209,7 @@ class TLDetector(object):
             rospy.logerr("Failed to find camera to map transform")
 
         # Use tranform and rotation to calculate 2D position of light in image
-        if (trans  != None):
+        if (trans != None):
             # Convert rotation vector so we can use it.
             yaw = tf.transformations.euler_from_quaternion(rot)[2]
 
@@ -296,7 +298,10 @@ class TLDetector(object):
         #Get classification
         clazz = self.light_classifier.get_classification(cropped_image)
         rospy.loginfo(clazz)
-        return clazz
+
+        # TODO: Make sure the classifier works correctly and re-enable this code:
+        # return clazz
+        return light.state
 
     def process_traffic_lights(self):
         """Finds closest visible traffic light, if one exists, and determines its
