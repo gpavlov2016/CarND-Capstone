@@ -35,9 +35,11 @@ TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 # keep the car drives inside a lane.
 LOOKAHEAD_WPS = 12
 
-# How far (in number of waypoints) can the car notice a traffic light and/or obstacle.
-LINE_OF_SIGHT_WPS = 50
+# How far (in number of waypoints) the car may notice a traffic light and/or obstacle.
+LINE_OF_SIGHT_WPS = 100
 
+# Number of waypoints needed to achieve full stop.
+# FULL_BRAKE_WPS = 40
 
 class WaypointUpdater(object):
     def __init__(self):
@@ -77,8 +79,8 @@ class WaypointUpdater(object):
             # This value can be found by enabling the log that starts with
             # "redlight_visible" below and then manually drive the car
             # while monitoring the value of `len(wps_to_rl)`
-            "wp_offset": 30,
-            "a": 0.2, # deceleration
+            "wp_offset": 35,
+            "a": 0.1, # deceleration
         }
 
         self.config = {
@@ -194,6 +196,8 @@ class WaypointUpdater(object):
                     next_yaw = self.get_waypoint_yaw(next_wp)
                     yaw_dist = next_yaw - self.yaw
                     self.adjust_waypoint_velocity_for_yaw(wp, yaw_dist)
+                    rospy.loginfo("speed after yaw adjustment (x, z): {}, {} (yaw dist {})".format(
+                        wp.twist.twist.linear.x, wp.twist.twist.linear.z, yaw_dist))
 
                 lane.waypoints.append(wp)
 
@@ -352,7 +356,7 @@ class WaypointUpdater(object):
 
         # If rl becomes less than cur position due to offset
         if rl <= i and redlight_wp > i:
-            pass
+            result.append(i)
         else:
             for i in range(i, rl):
                 result.append(i)
@@ -372,7 +376,7 @@ class WaypointUpdater(object):
         for wp in waypoints:
             dist = distance(wp.pose.pose.position,
                             self.waypoints[last_wp].pose.pose.position)
-            v = math.sqrt(2 * self.tl_config["a"] * dist)
+            v = math.sqrt(self.tl_config["a"] * dist)
             if v < 1.0: v = 0.0
             self.set_waypoint_velocity(
                 wp,

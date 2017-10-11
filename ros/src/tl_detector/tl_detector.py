@@ -1,16 +1,13 @@
 #!/usr/bin/env python
-import math
 import rospy
 from std_msgs.msg import Int32
-from geometry_msgs.msg import PoseStamped, Pose, Point
+from geometry_msgs.msg import PoseStamped, Pose
 from styx_msgs.msg import TrafficLightArray, TrafficLight
 from styx_msgs.msg import Lane
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 from light_classification.tl_classifier import TLClassifier
 import tf
-#from math import inf
-import numpy as np
 import cv2
 import yaml
 import math
@@ -21,15 +18,12 @@ class TLDetector(object):
     def __init__(self):
         rospy.init_node('tl_detector')
 
-        self.image_count = 467
         self.pose = None
         self.waypoints = None
         self.camera_image = None
         self.lights = []
 
-        #  can be used used to determine the vehicle's location.
         sub1 = rospy.Subscriber('/current_pose', PoseStamped, self.pose_cb)
-        # provides the complete list of waypoints for the course.
         sub2 = rospy.Subscriber('/base_waypoints', Lane, self.waypoints_cb)
 
         '''
@@ -40,8 +34,6 @@ class TLDetector(object):
         rely on the position of the light and the camera image to predict it.
         '''
         sub3 = rospy.Subscriber('/vehicle/traffic_lights', TrafficLightArray, self.traffic_cb)
-
-        # provides an image stream from the car's camera. These images are used to determine the color of upcoming traffic lights.
         sub6 = rospy.Subscriber('/image_color', Image, self.image_cb)
 
         config_string = rospy.get_param("/traffic_light_config")
@@ -58,11 +50,6 @@ class TLDetector(object):
         self.last_wp = -1
         self.state_count = 0
 
-        self.closest_waypoint = 0
-
-        self.IGNORE_DISTANCE_LIGHT = 90.0
-        self.old_stop_line_pos_wp = []
-        self.last_car_position = 0
         rospy.spin()
 
     def pose_cb(self, msg):
@@ -174,9 +161,6 @@ class TLDetector(object):
         """
         return math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2 + (a.z-b.z)**2)
 
-    def distance_2d(self, a, b):
-        return math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2)
-
     def project_to_image_plane(self, point_in_world):
         """Project point from 3D world coordinates to 2D camera image location
 
@@ -189,15 +173,13 @@ class TLDetector(object):
 
         """
 
-
-        # From udacity.
-        fx = 2574
-        fy = 2744
+        fx = self.config['camera_info']['focal_length_x']
+        fy = self.config['camera_info']['focal_length_y']
         image_width = self.config['camera_info']['image_width']
         image_height = self.config['camera_info']['image_height']
 
+        # get transform between pose of camera and world frame
         trans = None
-
         try:
             now = rospy.Time.now()
             self.listener.waitForTransform("/base_link",
@@ -208,64 +190,12 @@ class TLDetector(object):
         except (tf.Exception, tf.LookupException, tf.ConnectivityException):
             rospy.logerr("Failed to find camera to map transform")
 
-        # Use tranform and rotation to calculate 2D position of light in image
-        if (trans != None):
-            # Convert rotation vector so we can use it.
-            yaw = tf.transformations.euler_from_quaternion(rot)[2]
+        #TODO Use tranform and rotation to calculate 2D position of light in image
 
-            # Rotation followed by translation
-            px = point_in_world.x
-            py = point_in_world.y
-            pz = point_in_world.z
-            xt = trans[0]
-            yt = trans[1]
-            zt = trans[2]
+        x = 0
+        y = 0
 
-            Rnt = (
-                px * math.cos(yaw) - py * math.sin(yaw) + xt,
-                px * math.sin(yaw) + py * math.cos(yaw) + yt,
-                pz + zt)
-
-            u = int(fx * -Rnt[1] / Rnt[0] + image_width / 2 - 30)
-            v = int(fy * -(Rnt[2] - 1.0) / Rnt[0] + image_height + 50)
-
-            light_width = 1.0
-            light_height = 1.95
-
-            distance = self.distance_2d(self.pose.pose.position, point_in_world)
-
-            # Size of traffic light within 2D picture
-            light_width_estimate = 2 * fx * math.atan(light_width / (2 * distance))
-            light_height_estimate = 2 * fx * math.atan(light_height / (2 * distance))
-            # Get points for traffic light's bounding box
-            bbox_topleft = (int(u - light_width_estimate / 2), int(v - light_height_estimate / 2))
-            bbox_bottomright = (int(u + light_width_estimate / 2), int(v + light_height_estimate / 2))
-        else:
-            # No translation matrix so we cannot find the light.
-            bbox_topleft = (0, 0)
-            bbox_bottomright = (0, 0)
-
-        return (bbox_topleft, bbox_bottomright)
-
-
-    def resize_image(self, img, width, height):
-        
-        aspect_ratio_width = 0.5
-        aspect_ratio_height = height/width
-        img_height, img_width = img.shape[:2]
-        crop_height = int(img_width / aspect_ratio_width)
-        extra_height = (img_height - crop_height) / 2
-        crop_width = int(img_height / aspect_ratio_height)
-        extra_width = (img_width - crop_width) / 2
-        # Crop image to keep aspect ratio
-        if extra_height > 0:
-            crop_img = img[int(extra_height):int(img_height-math.ceil(extra_height)), 0:int(img_width)]
-        elif extra_width > 0:
-            crop_img = img[0:int(img_height), int(extra_width):int(img_width-math.ceil(extra_width))]
-        else:
-            crop_img = img
-
-        return cv2.resize(crop_img, (width, height), 0, 0, interpolation=cv2.INTER_AREA)
+        return (x, y)
 
     def get_light_state(self, light):
         """Determines the current color of the traffic light
@@ -283,61 +213,50 @@ class TLDetector(object):
 
         cv_image = self.bridge.imgmsg_to_cv2(self.camera_image, "bgr8")
 
-        pt = Point()
-        pt.x = light.pose.pose.position.x
-        pt.y = light.pose.pose.position.y
-        pt.z = 0
-        
-        # Convert given traffic light coordinates into position within 2D image
-        tleft, bright = self.project_to_image_plane(light.pose.pose.position)
-        cropped_image = cv_image[tleft[1]:bright[1], tleft[0]:bright[0]]
+        x, y = self.project_to_image_plane(light.pose.pose.position)
 
-        if (cropped_image.shape[0] > 0 and cropped_image.shape[1] > 0):
-            cropped_image = self.resize_image(cropped_image, 30, 60)
+        #TODO use light location to zoom in on traffic light in image
 
         #Get classification
-        clazz = self.light_classifier.get_classification(cropped_image)
-        rospy.loginfo(clazz)
-
-        # TODO: Make sure the classifier works correctly and re-enable this code:
-        # return clazz
+        # return self.light_classifier.get_classification(cv_image)
         return light.state
 
     def process_traffic_lights(self):
         """Finds closest visible traffic light, if one exists, and determines its
             location and color
+
         Returns:
             int: index of waypoint closes to the upcoming stop line for a traffic light (-1 if none exists)
             int: ID of traffic light color (specified in styx_msgs/TrafficLight)
+
         """
         light = None
 
-        if self.waypoints is not None:
-            # List of positions that correspond to the line to stop in front of for a given intersection
-            stop_line_positions = self.config['stop_line_positions']
-            if(self.pose):
-                car_position = self.get_closest_waypoint(self.pose.pose)
+        # List of positions that correspond to the line to stop in front of for a given intersection
+        stop_line_positions = self.config['stop_line_positions']
+        if(self.pose and self.waypoints is not None):
+            car_position = self.get_closest_waypoint(self.pose.pose)
 
-            #TODO find the closest visible traffic light (if one exists)
-            light = self.get_closest_light(self.pose.pose)
+        #TODO find the closest visible traffic light (if one exists)
+        light = self.get_closest_light(self.pose.pose)
 
-            if light:
-                light_wp = self.get_closest_waypoint(light.pose.pose)
-                state = self.get_light_state(light)
+        if light:
+            light_wp = self.get_closest_waypoint(light.pose.pose)
+            state = self.get_light_state(light)
 
-                # Debugging traffic light:
-                #
-                # rospy.loginfo("light_xyz: ({}, {}, {}), wp_xyz({}): ({}, {}, {})".format(
-                #     light.pose.pose.position.x,
-                #     light.pose.pose.position.y,
-                #     light.pose.pose.position.z,
-                #     light_wp,
-                #     self.waypoints[light_wp].pose.pose.position.x,
-                #     self.waypoints[light_wp].pose.pose.position.y,
-                #     self.waypoints[light_wp].pose.pose.position.z
-                # ))
-                return light_wp, state
-            self.waypoints = None
+            # Debugging traffic light:
+            #
+            # rospy.loginfo("light_xyz: ({}, {}, {}), wp_xyz({}): ({}, {}, {})".format(
+            #     light.pose.pose.position.x,
+            #     light.pose.pose.position.y,
+            #     light.pose.pose.position.z,
+            #     light_wp,
+            #     self.waypoints[light_wp].pose.pose.position.x,
+            #     self.waypoints[light_wp].pose.pose.position.y,
+            #     self.waypoints[light_wp].pose.pose.position.z
+            # ))
+            return light_wp, state
+        self.waypoints = None
         return -1, TrafficLight.UNKNOWN
 
     def get_closest_light(self, pose):
@@ -348,14 +267,11 @@ class TLDetector(object):
         Returns:
             TrafficLight: light object.
         """
-        # TODO: Decide if we should have a horizon (a max distance at which the car will try and capture the light).
-        horizon = 100
-
         min_dist = float("inf")
         light = None
         for l in self.lights:
             dist = self.pos_distance(pose.position, l.pose.pose.position)
-            if dist < min_dist and dist < horizon:
+            if dist < min_dist:
                 min_dist = dist
                 light = l
         return light
