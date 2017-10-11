@@ -1,6 +1,9 @@
 from styx_msgs.msg import TrafficLight
 import numpy as np
 from sklearn.externals import joblib
+import os 
+dir_path = os.path.dirname(os.path.realpath(__file__))
+model_path = os.path.join(dir_path, "..", "..", "..", "..", "model", "svm.p")
 
 CLASS_UNKNOWN=4
 CLASS_GREEN=2
@@ -10,7 +13,7 @@ CLASS_RED=0
 class TLClassifier(object):
     def __init__(self):
         # Load the model
-        self.clf = joblib.load("/capstone/model/svm.p")
+        self.clf = joblib.load(model_path)
 
         pass
 

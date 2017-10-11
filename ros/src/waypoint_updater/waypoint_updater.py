@@ -77,7 +77,7 @@ class WaypointUpdater(object):
             # This value can be found by enabling the log that starts with
             # "redlight_visible" below and then manually drive the car
             # while monitoring the value of `len(wps_to_rl)`
-            "wp_offset": 40,
+            "wp_offset": 30,
             "a": 0.2, # deceleration
         }
 
