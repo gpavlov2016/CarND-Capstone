@@ -95,6 +95,8 @@ class WaypointUpdater(object):
             "brake_traj": (lambda i: -15.0)
         }
 
+        self.cnt = 0
+        
         rospy.spin()
 
     def pose_cb(self, msg):
@@ -115,6 +117,12 @@ class WaypointUpdater(object):
             float64 z
             float64 w
         """
+        self.cnt += 1
+        if self.cnt % 10 != 0:
+          return
+
+        start_time = time.time()
+        
         self.pose = msg.pose
         pos = self.pose.position
         quat = PyKDL.Rotation.Quaternion(self.pose.orientation.x,
@@ -124,28 +132,36 @@ class WaypointUpdater(object):
         orient = quat.GetRPY()
         self.yaw = orient[2]
 
-        self.drive()
+        #self.drive()
+        elapsed_time = time.time() - start_time
+        rospy.loginfo('pose_cb time = %0.1fus\n' % (1000.0*1000*elapsed_time))
 
     def waypoints_cb(self, waypoints):
+        start_time = time.time()
         self.waypoints = waypoints.waypoints
         self.waypoints_header = waypoints.header
-        # rospy.loginfo("first time wp x: {}".format(self.waypoints[0].twist.twist.linear.x))
+        elapsed_time = time.time() - start_time
+        rospy.loginfo('waypoints_cb time = %0.1fus\n' % (1000.0*1000*elapsed_time))
 
     def traffic_cb(self, msg):
+        start_time = time.time()
         self.redlight_wp = None
         tl_wp = msg.data
         # `tl_wp >= self.cur_wp` ensures traffic light is in front of the car.
         # rospy.loginfo("tl_wp: {}".format(tl_wp))
         if tl_wp > -1 and tl_wp > self.cur_wp:
             self.redlight_wp = tl_wp
-            # rospy.loginfo("redlight_wp: {} cur_wp: {}".format(self.redlight_wp, self.cur_wp))
-        # self.drive()
+            rospy.loginfo("redlight_wp: {} cur_wp: {}".format(self.redlight_wp, self.cur_wp))
+        self.drive()
+        elapsed_time = time.time() - start_time
+        rospy.loginfo('traffic_cb time = %0.1fus\n' % (1000.0*1000*elapsed_time))
 
     def obstacle_cb(self, msg):
         # TODO: Callback for /obstacle_waypoint message. We will implement it later
         pass
 
     def drive(self):
+        start_time = time.time()
         if self.waypoints is not None:
             # rospy.loginfo("curyaw: {}".format(yaw))
 
@@ -221,6 +237,9 @@ class WaypointUpdater(object):
 
             # rospy.loginfo("(p) next_wp angular: {}".format(lane.waypoints[0].twist.twist.angular))
             self.final_waypoints_pub.publish(lane)
+        elapsed_time = time.time() - start_time
+        rospy.loginfo('drive() time = %0.1fus\n' % (1000.0*1000*elapsed_time))
+
 
     def get_waypoint_velocity(self, waypoint):
         return waypoint.twist.twist.linear.x
