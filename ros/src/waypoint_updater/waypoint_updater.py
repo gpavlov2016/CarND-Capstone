@@ -35,9 +35,8 @@ TODO (for Yousuf and Aaron): Stopline location for each traffic light.
 # keep the car drives inside a lane.
 LOOKAHEAD_WPS = 12
 
-# How far (in number of waypoints) can the car notice a traffic light and/or obstacle.
-LINE_OF_SIGHT_WPS = 50
-
+# How far (in number of waypoints) the car may notice a traffic light and/or obstacle.
+LINE_OF_SIGHT_WPS = 80
 
 class WaypointUpdater(object):
     def __init__(self):
@@ -57,9 +56,6 @@ class WaypointUpdater(object):
         # To avoid publishing same points multiple times.
         self.published_wp = None
 
-        # Total number of wp. Useful for cyclic indexing.
-        self.total_wp = 0
-
         # For benchmarking closest wp code 
         # self.sum_wp_time = 0.0
         # self.count_wp_time = 0
@@ -72,18 +68,31 @@ class WaypointUpdater(object):
 
         self.yaw = 0
 
-        self.tl_config = {
-            # How many waypoints before traffic light should we stop?
-            # This value can be found by enabling the log that starts with
-            # "redlight_visible" below and then manually drive the car
-            # while monitoring the value of `len(wps_to_rl)`
-            "wp_offset": 30,
-            "a": 0.2, # deceleration
+        self.config = {
+            "v": mph2mps(25),
+            "full_v": mph2mps(40)
         }
 
-        self.config = {
-            "v": mph2mps(10),
-            "v1": mph2mps(20)
+        self.tl_config = {
+            # How far (in meters) before traffic light should we stop?
+            # This value can be found by enabling the log that starts with
+            # "redlight_visible" below and then manually drive the car
+            # while monitoring the value of `rl`
+            "offset": 28.28,
+
+
+            # How far before the stop line should we begin braking?
+            "brake_start": 28.0,
+
+            # When the car is at at least `overshoot` meters behind of 
+            # the stop line, go full speed ahead (full_v) since there
+            # is no turning back. Negative value means this point is ahead of
+            # the line
+            "overshoot": -5.7,
+
+            "brake_v": -15.0,
+            # "brake_traj": (lambda i: math.sqrt((float(i)/30.0) * (self.config["v"])) - 3.0)
+            "brake_traj": (lambda i: -15.0)
         }
 
         rospy.spin()
@@ -115,23 +124,21 @@ class WaypointUpdater(object):
         orient = quat.GetRPY()
         self.yaw = orient[2]
 
-        rospy.loginfo("start pose_cb")
         self.drive()
 
     def waypoints_cb(self, waypoints):
         self.waypoints = waypoints.waypoints
-        self.total_wp = len(self.waypoints)
         self.waypoints_header = waypoints.header
-        rospy.loginfo("first time wp x: {}".format(self.waypoints[0].twist.twist.linear.x))
+        # rospy.loginfo("first time wp x: {}".format(self.waypoints[0].twist.twist.linear.x))
 
     def traffic_cb(self, msg):
         self.redlight_wp = None
         tl_wp = msg.data
         # `tl_wp >= self.cur_wp` ensures traffic light is in front of the car.
-        rospy.loginfo("tl_wp: {}".format(tl_wp))
+        # rospy.loginfo("tl_wp: {}".format(tl_wp))
         if tl_wp > -1 and tl_wp > self.cur_wp:
             self.redlight_wp = tl_wp
-            rospy.loginfo("redlight_wp: {} cur_wp: {}".format(self.redlight_wp, self.cur_wp))
+            # rospy.loginfo("redlight_wp: {} cur_wp: {}".format(self.redlight_wp, self.cur_wp))
         # self.drive()
 
     def obstacle_cb(self, msg):
@@ -140,10 +147,6 @@ class WaypointUpdater(object):
 
     def drive(self):
         if self.waypoints is not None:
-            # For circular id i.e. to keep from breaking when
-            # `(cur_wp_id + LOOKAHEAD_WPS) > len(self.waypoints)`
-            n = self.total_wp
-
             # rospy.loginfo("curyaw: {}".format(yaw))
 
             # start = time.time()
@@ -160,40 +163,59 @@ class WaypointUpdater(object):
             rl_is_visible = self.redlight_is_visible()
             redlight_wp = self.redlight_wp
 
-            rospy.loginfo("redlight_visible: {}, cur_wp: {}, redlight_wp: {} (stop at {})".format(
+            rospy.loginfo("redlight_visible: {}, cur: {}, rl: {}({}m)".format(
                 rl_is_visible,
                 self.cur_wp,
                 redlight_wp,
-                None if redlight_wp is None else (redlight_wp - self.tl_config["wp_offset"])
+                None if redlight_wp is None else \
+                  (distance(self.waypoints[redlight_wp].pose.pose.position,
+                            self.waypoints[self.cur_wp].pose.pose.position))
             ))
 
             if rl_is_visible:
             # if False:
-                wps_to_rl = self.wp_to_redlight(redlight_wp)
-                rospy.loginfo("wps_to_rl: {} ({})".format(
-                    wps_to_rl,
-                    len(wps_to_rl)
+                wps_to_sl = self.wp_to_stopline(redlight_wp)
+
+                wps_to_sl.insert(0, self.cur_wp)
+
+                distance_to_stopline = 0.0
+                if wps_to_sl[0] > wps_to_sl[-1]:
+                    distance_to_stopline = -self.wp_distance(wps_to_sl[-1], wps_to_sl[0])
+                else:
+                    distance_to_stopline = self.wp_distance(wps_to_sl[0], wps_to_sl[-1])
+
+                rospy.loginfo("wps_to_sl: {} (total: {}, distance: {}m)".format(
+                    wps_to_sl,
+                    len(wps_to_sl),
+                    distance_to_stopline
                 ))
-                if len(wps_to_rl) == 0:
+
+                if distance_to_stopline <= self.tl_config["brake_start"] and \
+                   distance_to_stopline > self.tl_config["overshoot"]:
+                    self.full_brake(wps_to_sl)
+                elif distance_to_stopline <= self.tl_config["overshoot"]:
                     # This means the light has turned red, but the car is still in the
                     # intersection. Go full speed ahead in this case.
-                    self.set_waypoint_velocity(first_wp_obj, mps2mph(self.config["v1"]))
-                else:
-                    self.full_brake(wps_to_rl)
+                    self.set_waypoint_velocity(first_wp_obj, (self.config["full_v"]))
             else:
-                self.set_waypoint_velocity(first_wp_obj, mps2mph(self.config["v"]))
+                self.set_waypoint_velocity(first_wp_obj, (self.config["v"]))
 
+            rospy.loginfo("v was set to: {}".format(
+                self.waypoints[self.cur_wp].twist.twist.linear.x))
+            
             for i, wp in enumerate(self.waypoints[
-                self.cur_wp%n:(self.cur_wp+LOOKAHEAD_WPS)%n]):
+                self.cur_wp:(self.cur_wp+LOOKAHEAD_WPS)]):
                 if i == 0:
-                    rospy.loginfo("closest wp speed: {}".format(wp.twist.twist.linear.x))
+                    # rospy.loginfo("closest wp speed: {}".format(wp.twist.twist.linear.x))
                     # Adjust angular velocity of the waypoint directly in front of the car.
                     idx = self.cur_wp
-                    next_wp = self.waypoints[(idx+1)%n]
+                    next_wp = self.waypoints[(idx+1)]
                     # Calculates yaw rate
                     next_yaw = self.get_waypoint_yaw(next_wp)
                     yaw_dist = next_yaw - self.yaw
                     self.adjust_waypoint_velocity_for_yaw(wp, yaw_dist)
+                    rospy.loginfo("speed after yaw adjustment (x, z): {}, {} (yaw dist {})".format(
+                        wp.twist.twist.linear.x, wp.twist.twist.linear.z, yaw_dist))
 
                 lane.waypoints.append(wp)
 
@@ -334,9 +356,9 @@ class WaypointUpdater(object):
         else:
             return ((self.cur_wp + LINE_OF_SIGHT_WPS) >= self.redlight_wp)
 
-    def wp_to_redlight(self, redlight_wp):
+    def wp_to_stopline(self, redlight_wp):
         """ Get a list of waypoint ids from the current
-            position to the closest red light - offset.
+            position to the closest stop line (i.e. red light - offset).
         
         Args:
             redlight_wp (int): ID of red light waypoint. We use variable here
@@ -346,17 +368,43 @@ class WaypointUpdater(object):
         Returns:
             list (int): List of waypoint ids.
         """
-        i = self.cur_wp
-        rl = redlight_wp - self.tl_config["wp_offset"]
         result = []
 
-        # If rl becomes less than cur position due to offset
-        if rl <= i and redlight_wp > i:
-            pass
-        else:
-            for i in range(i, rl):
-                result.append(i)
+        sl_wp = self.dist2wp(redlight_wp, -self.tl_config["offset"])
+        # rospy.loginfo("sl_wp: {}".format(sl_wp))
+        result = []
+        diff = 1
+        if self.cur_wp > sl_wp:
+            diff = -1
+        for i in range(self.cur_wp, sl_wp, diff):
+            result.append(i)
+
         return result
+
+    def dist2wp(self, wp, dist):
+        """ Find out last waypoint from given current waypoint and a distance.
+
+        Args:
+            wp (int): The beginning waypoint id.
+            dist (double): Distance from wp, negative for orientation opposite to the car's
+                           heading (i.e. lower waypoints).
+
+        Returns:
+            int: The last waypoint's id.
+        """
+        dist_tally = dist
+        d = 1
+        if dist < 0:
+            dist_tally *= -1
+            d = -1
+
+        fin_wp = wp
+        while dist_tally > 0:
+            new_fin_wp = fin_wp + d
+            dist = self.wp_distance(new_fin_wp, fin_wp)
+            dist_tally -= dist
+            fin_wp = new_fin_wp
+        return fin_wp
 
     def full_brake(self, wps):
         """ Initiate full brake through the given waypoint ids.
@@ -366,17 +414,19 @@ class WaypointUpdater(object):
                              be at full stop at the last id.
         """
         last_wp = wps[len(wps)-1]
-        self.waypoints[last_wp].twist.twist.linear.x = 0.
-        waypoints = self.waypoints[:-1]
+        self.set_waypoint_velocity(self.waypoints[last_wp], 0.)
+        waypoints = [self.waypoints[i] for i in wps][:-1]
         waypoints.reverse()
-        for wp in waypoints:
+        for i, wp in enumerate(waypoints):
             dist = distance(wp.pose.pose.position,
                             self.waypoints[last_wp].pose.pose.position)
-            v = math.sqrt(2 * self.tl_config["a"] * dist)
-            if v < 1.0: v = 0.0
+            new_v = self.tl_config["brake_traj"](i)
+            if new_v < 1.0: new_v = self.tl_config["brake_v"]
+            # rospy.loginfo("set v to {} (i = {})".format(new_v, i))
             self.set_waypoint_velocity(
                 wp,
-                min(v, wp.twist.twist.linear.x))
+                new_v
+                )
 
 if __name__ == '__main__':
     try:

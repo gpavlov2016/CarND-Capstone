@@ -299,9 +299,7 @@ class TLDetector(object):
         clazz = self.light_classifier.get_classification(cropped_image)
         rospy.loginfo(clazz)
 
-        # TODO: Make sure the classifier works correctly and re-enable this code:
-        # return clazz
-        return light.state
+        return clazz
 
     def process_traffic_lights(self):
         """Finds closest visible traffic light, if one exists, and determines its
