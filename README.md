@@ -1,5 +1,15 @@
 This is the project repo for the final project of the Udacity Self-Driving Car Nanodegree: Programming a Real Self-Driving Car. For more information about the project, see the project introduction [here](https://classroom.udacity.com/nanodegrees/nd013/parts/6047fe34-d93c-4f50-8336-b70ef10cb4b2/modules/e1a23b06-329a-4684-a717-ad476f0d8dff/lessons/462c933d-9f24-42d3-8bdc-a08a5fc866e4/concepts/5ab4b122-83e6-436d-850f-9f4d26627fd9).
 
+# Team introduction
+|              |     Name      | Location | LinkedIn | Image |
+|--------------|---------------|----------|----------|--------------------------------|
+| __Team Lead__| Guy Pavlov | San Jose, CA | [linkedin.com/in/guypavlov](https://linkedin.com/in/guypavlov) | <img src="./imgs/GuyPavlov.jpg" alt="Guy Pavlov" width="150" height="150"> |
+|| Aaron | | | |
+|| Jay |  |  |  |
+|| Shubham | |  |  |
+
+# Installation and Usage
+
 ### Native Installation
 
 * Be sure that your workstation is running Ubuntu 16.04 Xenial Xerus or Ubuntu 14.04 Trusty Tahir. [Ubuntu downloads can be found here](https://www.ubuntu.com/download/desktop).
@@ -67,14 +77,6 @@ cd CarND-Capstone/ros
 roslaunch launch/site.launch
 ```
 5. Confirm that traffic light detection works on real life images
-
-# Team introduction
-|              |     Name      | Location | LinkedIn | Image |
-|--------------|---------------|----------|----------|--------------------------------|
-| __Team Lead__| Guy Pavlov | San Jose, CA | [linkedin.com/in/guypavlov](https://linkedin.com/in/guypavlov) | <img src="https://drive.google.com/open?id=0BzmN3ymeCTIUd1gwRGhRblNwakE" alt="Guy Pavlov" width="150" height="150"> |
-|| Aaron | | | |
-|| Jay |  |  |  |
-|| Shubham | |  |  |
 
 # Architechture
 
