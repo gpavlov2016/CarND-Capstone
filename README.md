@@ -67,3 +67,23 @@ cd CarND-Capstone/ros
 roslaunch launch/site.launch
 ```
 5. Confirm that traffic light detection works on real life images
+
+# Team introduction
+|              |     Name      | Location | LinkedIn | Image |
+|--------------|---------------|----------|----------|--------------------------------|
+| __Team Lead__| Guy Pavlov | San Jose, CA | [linkedin.com/in/guypavlov](https://linkedin.com/in/guypavlov) | <img src="https://drive.google.com/open?id=0BzmN3ymeCTIUd1gwRGhRblNwakE" alt="Guy Pavlov" width="150" height="150"> |
+|| Aaron | | | |
+|| Jay |  |  |  |
+|| Shubham | |  |  |
+
+# Architechture
+
+## Control
+
+## Perception
+
+## Planning
+
+# Results
+
+Add video of the car in simulator here
