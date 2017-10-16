@@ -82,7 +82,7 @@ roslaunch launch/site.launch
 This is the system architecture for this project, we have not worked on obstacle detection as part of this implementation
 
 
-[image](imgs/1.png)
+![image](imgs/1.png)
 
 
 ## Control
