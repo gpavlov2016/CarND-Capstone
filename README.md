@@ -6,7 +6,7 @@ This is the project repo for the final project of the Udacity Self-Driving Car N
 | __Team Lead__| Guy Pavlov | San Jose, CA | [linkedin.com/in/guypavlov](https://linkedin.com/in/guypavlov) | <img src="./imgs/GuyPavlov.jpg" alt="Guy Pavlov" width="150" height="150"> |
 || Aaron | | | |
 || Jay |  |  |  |
-|| Shubham | |  |  |
+|Member| Shubham |Shubham Agrawal | Santa Clara, CA | [linkedin.com/in/shubham1](https://linkedin.com/in/shubham1) | <img src="./imgs/shubham.jpg" alt="Shubham" width="150" height="150">
 
 # Installation and Usage
 
@@ -79,13 +79,25 @@ roslaunch launch/site.launch
 5. Confirm that traffic light detection works on real life images
 
 # Architechture
+This is the system architecture for this project, we have not worked on obstacle detection as part of this implementation
 
+<img src="./imgs/1.png"
 ## Control
 
 ## Perception
 
 ## Planning
+This module decide the vehicle path using various inputs like: vehicle's current position, velocity and location, state of various traffic lights on the way. This includes two main nodes: 
+1. **Waypoint loader:** This loads the static waypoint data (CSV) and publishes to /base_waypoints 
+ 
 
+ 2. **Waypoint updater:** This is main planning node. This subscribes to three main topics, 1. current_pose, vehicle current position, 2. base_waypoints, list of all waypoints and 3. traffic_waypoint, location of traffic light. 
+ 
+    If upcoming traffic light is red and vehicle is at stopping distance then system tries to stop the vehicle. In case of situation when there is no red light or vehicle is ahead of red light stop line, vehicle moves at max speed. 
+ 
 # Results
 
 Add video of the car in simulator here
+
+
+# Known issues/ Future work
