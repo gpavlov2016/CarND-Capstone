@@ -4,9 +4,9 @@ This is the project repo for the final project of the Udacity Self-Driving Car N
 |              |     Name      | Location | LinkedIn | Image |
 |--------------|---------------|----------|----------|--------------------------------|
 | __Team Lead__| Guy Pavlov | San Jose, CA | [linkedin.com/in/guypavlov](https://linkedin.com/in/guypavlov) | <img src="./imgs/GuyPavlov.jpg" alt="Guy Pavlov" width="150" height="150"> |
-|| Aaron | | | |
-|| Jay |  |  |  |
-|Member| Shubham | Santa Clara, CA | [linkedin.com/in/shubham1](https://linkedin.com/in/shubham1) | <img src="./imgs/shubham.jpg" alt="Shubham" width="150" height="150">
+|Member| Aaron | | | |
+|Member| Jay |  |  |  |
+|Member| Shubham | Santa Clara, CA | [linkedin.com/in/shubham1](https://linkedin.com/in/shubham1) | 
 
 # Installation and Usage
 
@@ -86,6 +86,9 @@ This is the system architecture for this project, we have not worked on obstacle
 
 
 ## Control
+This module handles vehicle's throttle, brake and steering based on the provided list of waypoints to follow. We have used PID controller to handle these three components. 
+
+Braking is done in the proportion of difference between current velocity and expected velocity. 
 
 ## Perception
 
