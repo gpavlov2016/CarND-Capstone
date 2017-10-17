@@ -92,6 +92,18 @@ Braking is done in the proportion of difference between current velocity and exp
 
 ## Perception
 
+The perception part in this project is mainly concerened with detecting the state of traffic lights and publishing the results (red/yellow/green/none) to ROS node to be consumed by the waypoint_updater node.
+
+### Traffic Light Detection and Classification
+
+The traffic light detection is broken up into two parts. Part one deals with light localization and capture. Part two uses the captured light image (30x60 pixels) to classify the light as red, yellow, or green. 
+
+For part one, localization, we use the 3D coordinate space of the vehicle in conjunction with the light waypoint data to find a 2D bounding box around the next closest light (if there is one). This is done by creating a translation, camera, and rotation matrix and then applying a linear transformation to the 3D point vector. 
+
+Part two, classification, requires an accurate capture of the traffic light. A support vector machine (SVM) was trained against approximately 1000 captured images, using a histogram of the color space as  input features. The SVM does a very good job of classifying lights in the simulator, but it is less accurate with real world image capturing. 
+
+Upon classifying the image, the class is published to other nodes. After a set number of consecutive classifications, the vehicle is confident in the measurement and decides what to do based on the light color.
+
 ## Planning
 This module decide the vehicle path using various inputs like: vehicle's current position, velocity and location, state of various traffic lights on the way. This includes two main nodes: 
 1. **Waypoint loader:** This loads the static waypoint data (CSV) and publishes to /base_waypoints 
