@@ -37,6 +37,7 @@ class DBWNode(object):
         fuel_capacity = rospy.get_param('~fuel_capacity', 13.5)
         brake_deadband = rospy.get_param('~brake_deadband', .1)
         decel_limit = rospy.get_param('~decel_limit', -5)
+        # decel_limit = rospy.get_param('~decel_limit', -100)
         accel_limit = rospy.get_param('~accel_limit', 1.)
         wheel_radius = rospy.get_param('~wheel_radius', 0.2413)
         wheel_base = rospy.get_param('~wheel_base', 2.8498)
@@ -89,6 +90,11 @@ class DBWNode(object):
                 self.twist_cmd.twist.angular,
                 self.current_velocity.twist.linear,
                 self.dbw_enabled)
+    
+            rospy.loginfo("throttle PID: {}, {}, {}".format(
+                self.controller.throttle_pid.kp,
+                self.controller.throttle_pid.ki,
+                self.controller.throttle_pid.kd))
 
             if self.dbw_enabled:
                 self.publish(throttle, brake, steering)

@@ -16,13 +16,6 @@ class Controller(object):
         self.throttle_pid = PID(kwargs['throttle_gains'])
         self.steering_pid = PID(kwargs['steering_gains'])
 
-        # Varun's
-        # self.yaw_control = YawController(kwargs['wheel_base'], kwargs['steer_ratio'],
-        #                                   kwargs['min_speed'], kwargs['max_lat_accel'],
-        #                                   kwargs['max_steer_angle'],
-        #                                   kwargs['steering_gains']
-        #                                   )
-
         self.last_t = None
         self.filter = LowPassFilter(0.2,0.1)
 
@@ -43,12 +36,16 @@ class Controller(object):
         dt = time.time() - self.last_t
         error_v = min(target_v.x, MAX_SPEED*ONE_MPH) - current_v.x
         throttle = self.throttle_pid.step(error_v, dt)
-        throttle = max(0.0, min(1.0, throttle))
+        rospy.loginfo("throttle step: {}, error_v: {}".format(throttle, error_v))
+        rospy.loginfo("throttle step1: {}".format(throttle))
         if error_v < 0:
-            brake = -10.0*error_v   # Proportional braking
+            # brake = -10.0*error_v   # Proportional braking
+            brake = -throttle*50
             brake = max(brake, 1.0)
             throttle = 0.0
+            rospy.loginfo("brake value: {}".format(brake))
         else:
+            throttle = max(0.0, min(1.0, throttle))
             brake = 0.0
 
         # Varun's

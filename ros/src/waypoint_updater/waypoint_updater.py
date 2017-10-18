@@ -90,9 +90,9 @@ class WaypointUpdater(object):
             # the line
             "overshoot": -5.7,
 
-            "brake_v": -15.0,
+            "brake_v": 0.0,
             # "brake_traj": (lambda i: math.sqrt((float(i)/30.0) * (self.config["v"])) - 3.0)
-            "brake_traj": (lambda i: -15.0)
+            "brake_traj": (lambda i: 0.0)
         }
 
         self.cnt = 0
@@ -208,6 +208,7 @@ class WaypointUpdater(object):
 
                 if distance_to_stopline <= self.tl_config["brake_start"] and \
                    distance_to_stopline > self.tl_config["overshoot"]:
+                    rospy.loginfo("full-braking")
                     self.full_brake(wps_to_sl)
                 elif distance_to_stopline <= self.tl_config["overshoot"]:
                     # This means the light has turned red, but the car is still in the
@@ -255,9 +256,10 @@ class WaypointUpdater(object):
             yaw_dist (float): The angle (in radians) between the car's current orientation (yaw)
                               and the waypoint's final orientation.
         """
-        velocity = waypoint.twist.twist.linear.x
-        waypoint.twist.twist.linear.x = velocity * math.cos(yaw_dist)
-        waypoint.twist.twist.linear.z = velocity * math.sin(yaw_dist)
+        pass
+        # velocity = waypoint.twist.twist.linear.x
+        # waypoint.twist.twist.linear.x = velocity * math.cos(yaw_dist)
+        # waypoint.twist.twist.linear.z = velocity * math.sin(yaw_dist)
 
     def wp_distance(self, wp1, wp2):
         """ Get distance between two waypoints.
