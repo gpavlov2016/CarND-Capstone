@@ -1,5 +1,15 @@
 This is the project repo for the final project of the Udacity Self-Driving Car Nanodegree: Programming a Real Self-Driving Car. For more information about the project, see the project introduction [here](https://classroom.udacity.com/nanodegrees/nd013/parts/6047fe34-d93c-4f50-8336-b70ef10cb4b2/modules/e1a23b06-329a-4684-a717-ad476f0d8dff/lessons/462c933d-9f24-42d3-8bdc-a08a5fc866e4/concepts/5ab4b122-83e6-436d-850f-9f4d26627fd9).
 
+# Team introduction
+|              |     Name      | Location | LinkedIn | Image |
+|--------------|---------------|----------|----------|--------------------------------|
+| __Team Lead__| Guy Pavlov | San Jose, CA | [linkedin.com/in/guypavlov](https://linkedin.com/in/guypavlov) | <img src="./imgs/GuyPavlov.jpg" alt="Guy Pavlov" width="150" height="150"> |
+|Member| Aaron | | | |
+|Member| Jay |  |  |  |
+|Member| Shubham | Santa Clara, CA | [linkedin.com/in/shubham1](https://linkedin.com/in/shubham1) | 
+
+# Installation and Usage
+
 ### Native Installation
 
 * Be sure that your workstation is running Ubuntu 16.04 Xenial Xerus or Ubuntu 14.04 Trusty Tahir. [Ubuntu downloads can be found here](https://www.ubuntu.com/download/desktop).
@@ -67,3 +77,45 @@ cd CarND-Capstone/ros
 roslaunch launch/site.launch
 ```
 5. Confirm that traffic light detection works on real life images
+
+# Architechture
+This is the system architecture for this project, we have not worked on obstacle detection as part of this implementation
+
+
+![image](imgs/1.png)
+
+
+## Control
+This module handles vehicle's throttle, brake and steering based on the provided list of waypoints to follow. We have used PID controller to handle these three components. 
+
+Braking is done in the proportion of difference between current velocity and expected velocity. 
+
+## Perception
+
+The perception part in this project is mainly concerened with detecting the state of traffic lights and publishing the results (red/yellow/green/none) to ROS node to be consumed by the waypoint_updater node.
+
+### Traffic Light Detection and Classification
+
+The traffic light detection is broken up into two parts. Part one deals with light localization and capture. Part two uses the captured light image (30x60 pixels) to classify the light as red, yellow, or green. 
+
+For part one, localization, we use the 3D coordinate space of the vehicle in conjunction with the light waypoint data to find a 2D bounding box around the next closest light (if there is one). This is done by creating a translation, camera, and rotation matrix and then applying a linear transformation to the 3D point vector. 
+
+Part two, classification, requires an accurate capture of the traffic light. A support vector machine (SVM) was trained against approximately 1000 captured images, using a histogram of the color space as  input features. The SVM does a very good job of classifying lights in the simulator, but it is less accurate with real world image capturing. 
+
+Upon classifying the image, the class is published to other nodes. After a set number of consecutive classifications, the vehicle is confident in the measurement and decides what to do based on the light color.
+
+## Planning
+This module decide the vehicle path using various inputs like: vehicle's current position, velocity and location, state of various traffic lights on the way. This includes two main nodes: 
+1. **Waypoint loader:** This loads the static waypoint data (CSV) and publishes to /base_waypoints 
+ 
+
+ 2. **Waypoint updater:** This is main planning node. This subscribes to three main topics, 1. current_pose, vehicle current position, 2. base_waypoints, list of all waypoints and 3. traffic_waypoint, location of traffic light. 
+ 
+    If upcoming traffic light is red and vehicle is at stopping distance then system tries to stop the vehicle. In case of situation when there is no red light or vehicle is ahead of red light stop line, vehicle moves at max speed. 
+ 
+# Results
+
+Add video of the car in simulator here
+
+
+# Known issues/ Future work
