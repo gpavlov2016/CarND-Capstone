@@ -79,11 +79,10 @@ roslaunch launch/site.launch
 5. Confirm that traffic light detection works on real life images
 
 # Architecture
-This is the system architecture for this project, we have not worked on obstacle detection as part of this implementation
+This is the system architecture for this project, we have not worked on obstacle detection as part of this implementation.
 
 
 ![image](imgs/1.png)
-
 
 ## Perception
 
@@ -116,7 +115,15 @@ When a red traffic light is visible, the system sets all waypoints within 23 met
 The waypoint updater node then publishes all 80 waypoints ahead of the vehicle to `/final_waypoints` topic.
 
 ## Control
-This module handles the vehicle's throttle, brake, and steering based on the provided list of waypoints to follow. We use a PID controller for each of these three components. It has two main nodes:
+This module handles the vehicle's throttle, brake, and steering based on the provided list of waypoints to follow. We use a PID controller for each of these three components.
+
+Brake PID uses negative of difference in actual and expected velocity. With max value of full brake, on red lights.
+
+Throttle PID uses difference in actual and expected velocity. Here we set brake to zero as we are accelerating.
+
+Steering PID is used for steering control. It takes the required angle for the vehicle movement and give corresponding steering wheel angle. 
+
+It has two main nodes:
 
 1. **Waypoint follower:** This node uses [pure pursuit](https://www.mathworks.com/help/robotics/ug/pure-pursuit-controller.html?requestedDomain=www.mathworks.com) algorithm that allows the vehicle to smoothly follows a given trajectory. A couple of aspects to note here:
   - The node subscribes to `/final_waypoints` topic to get its trajectory from (which is simply a list of waypoints).
