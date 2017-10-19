@@ -5,7 +5,7 @@ This is the project repo for the final project of the Udacity Self-Driving Car N
 |--------------|---------------|----------|----------|--------------------------------|
 | __Team Lead__| Guy Pavlov | San Jose, CA | [linkedin.com/in/guypavlov](https://linkedin.com/in/guypavlov) | <img src="./imgs/GuyPavlov.jpg" alt="Guy Pavlov" width="150" height="150"> |
 |Member| Aaron | | | |
-|Member| Jay | San Jose, CA | [linkedin.com/in/jaycode](https://linkedin.com/in/jaycode) |  |
+|Member| Jay Teguh | Indonesia | [linkedin.com/in/jaycode](https://linkedin.com/in/jaycode) |  |
 |Member| Shubham | Santa Clara, CA | [linkedin.com/in/shubham1](https://linkedin.com/in/shubham1) | 
 
 # Installation and Usage
@@ -87,28 +87,7 @@ This is the system architecture for this project, we have not worked on obstacle
 
 ## Perception
 
-The perception part in this project is mainly concerned with detecting the state of traffic lights and publishing the results (red/yellow/green/none) to ROS node to be consumed by the waypoint_updater node.
-
-## Planning
-This module determines the vehicle path using various inputs like: vehicle's current position, velocity, and the state of various traffic lights along the way. This includes two main nodes: 
-
-1. **Waypoint loader:** This node loads the static waypoint data (CSV) and publishes to /base_waypoints 
- 
- 2. **Waypoint updater:** This is the main planning node. This node subscribes to three main topics:
-  - `current_pose`: The vehicle's current position.
-  - `base_waypoints`: List of all waypoints, and
-  - `traffic_waypoint`: Waypoint ID of the next red traffic light. Note that when the next traffic light is green, this node publishes `None` value. "Next" here is defined as "within 80 waypoints ahead of the vehicle", or in other words, that range is the visibility of our vehicle.
- 
-    When a red traffic light is visible, the system sets all waypoints within 23 meters leading to the stopping line to have a gradually decreasing speed. The gradual decrease was calculated by a simple linear trajectory with a rate of `(1/n) * normal_speed` where `n` is the number of waypoints in that runway. So for example, if we had 23 waypoints covering the entire 23 meters runway, and the normal speed was 23 meters/second, then the speed at the waypoints would subsequently 23, 22, 21, down to 0 m/s right in front of the stopping line.
-
-    For emergencies, the 
-
-## Control
-This module handles vehicle's throttle, brake and steering based on the provided list of waypoints to follow. We have used a PID controller for each these three components.
-
-
-
-
+The perception part in this project is mainly concerned with detecting the state of traffic lights and publishing the results (red/yellow/green/none) to ROS node `/traffic_waypoint` to be consumed by the `waypoint_updater` node.
 
 ### Traffic Light Detection and Classification
 
@@ -120,11 +99,50 @@ Part two, classification, requires an accurate capture of the traffic light. A s
 
 Upon classifying the image, the class is published to other nodes. After a set number of consecutive classifications, the vehicle is confident in the measurement and decides what to do based on the light color.
 
+## Planning
+This module determines the vehicle path using various inputs like: vehicle's current position, velocity, and the state of various traffic lights along the way. It has two main nodes: 
 
+1. **Waypoint loader:** This node loads the static waypoint data (CSV) and publishes to `/base_waypoints` 
+ 
+2. **Waypoint updater:** This is the main planning node. This node subscribes to three main topics:
+  - `/current_pose` The vehicle's current position.
+  - `/base_waypoints` List of all waypoints, and
+  - `/traffic_waypoint` Waypoint ID of the next red traffic light. Note that when the next traffic light is green, this node publishes `None` value. "Next" here is defined as "within 80 waypoints ahead of the vehicle", or in other words, that range is the visibility of our vehicle.
+
+### Gradual stopping for traffic light
+
+When a red traffic light is visible, the system sets all waypoints within 23 meters leading to the stopping line to have a gradually decreasing speed. The gradual decrease was calculated by a simple linear trajectory with a rate of `(1/n) * normal_speed` where `n` is the number of waypoints in that runway. So for example, if we had 23 waypoints covering the entire 23 meters runway, and the normal speed was 23 meters/second, then the speed at the waypoints would subsequently 23, 22, 21, down to 0 m/s right in front of the stopping line.
+
+The waypoint updater node then publishes all 80 waypoints ahead of the vehicle to `/final_waypoints` topic.
+
+## Control
+This module handles the vehicle's throttle, brake, and steering based on the provided list of waypoints to follow. We use a PID controller for each of these three components. It has two main nodes:
+
+1. **Waypoint follower:** This node uses [pure pursuit](https://www.mathworks.com/help/robotics/ug/pure-pursuit-controller.html?requestedDomain=www.mathworks.com) algorithm that allows the vehicle to smoothly follows a given trajectory. A couple of aspects to note here:
+  - The node subscribes to `/final_waypoints` topic to get its trajectory from (which is simply a list of waypoints).
+  - We adjusted the pure pursuit algorithm **not** to adjust the target linear velocity. In other words, it was only allowed to adjust the target angular velocity. The reason for this was to get the node to pass the same target linear velocity value as the waypoint updater node. Throttle and Brake PIDs would then use this target linear velocity to adjust when and how strong to throttle and brake.
+  - Publish the twist command (target linear and angular velocities) to `/twist_cmd` topic.
+
+2. **Twist controller** This node subscribes to `/twist_cmd` to get the target linear and angular velocities, and `/current_velocity` to get the current velocity. It then uses PID controllers to adjust actuator commands to follow the target velocities given the current velocity.
+
+### Tuning PID Controllers
+
+The tuning for each PID controller was done as follows:
+
+1. We started with a tiny P coefficient. The vehicle would initially not actuate enough to reach the target component (throttle, brake, or steering error).
+2. Increase the P coefficient until the adjusted value slightly overshoots but reasonably follows the target component. In steering, for example, the vehicle would oscillate within the center lane.
+3. We then adjusted the D coefficient with a similar method as above: start from a small value, then increase until we reach a point of diminishing return. The end result here was a movement that oscillated very slightly with a smooth throttle and brake transition.
+4. Brake PID controller was done a bit differently. With braking, we first tried to find the right P and D coefficients to achieve full-stop within 20 waypoints, then measure the distance of these 20 waypoints (in meters). We then finally store that value + some buffer as the system's `brake_start` configuration, which was found to be 23 meters in this case.
  
 # Results
 
-Add video of the car in simulator here
+Initial submission (V.0):
+
+[![Initial Submission](https://img.youtube.com/vi/-CaE_pZjoi0/0.jpg)](https://www.youtube.com/watch?v=-CaE_pZjoi0)
 
 
 # Known issues/ Future work
+
+## More robust speed control near traffic light
+
+Imagine the vehicle was driving at full speed while being close to stopping line and the traffic light was green but about to change to red. When the traffic light turns to red, there is a probability that the vehicle would not have enough time to stop in time. A more robust speed control is likely needed here, perhaps by reducing the vehicle's speed despite the traffic light's current state. A more advanced technique may involve adjusting the speed appropriately depending on the green light's elapsed time, just [like humans do](https://www.youtube.com/watch?v=GuY4FR-bmGY&list=RDGuY4FR-bmGY&t=12).
