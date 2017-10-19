@@ -86,9 +86,13 @@ This is the system architecture for this project, we have not worked on obstacle
 
 
 ## Control
-This module handles vehicle's throttle, brake and steering based on the provided list of waypoints to follow. We have used PID controller to handle these three components. 
+This module handles vehicle's throttle, brake and steering based on the provided list of waypoints to follow. We have used three separate PID controller to handle these three components. 
 
-Braking is done in the proportion of difference between current velocity and expected velocity. 
+Brake PID uses negative of difference in actual and expected velocity. With max value of full brake, on red lights.
+
+Throttle PID uses difference in actual and expected velocity. Here we set brake to zero as we are accelerating.
+
+Steering PID is used for steering control. It takes the required angle for the vehicle movement and give corresponding steering wheel angle. 
 
 ## Perception
 
