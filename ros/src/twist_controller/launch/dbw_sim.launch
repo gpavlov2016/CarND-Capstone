@@ -14,8 +14,11 @@
         <param name="throttle_Kp" value="1.0" />
         <param name="throttle_Ki" value="0.0" />
         <param name="throttle_Kd" value="0.01" />
-        <param name="steering_Kp" value="0.5" />
+        <param name="steering_Kp" value="0.3" />
         <param name="steering_Ki" value="0.0" />
-        <param name="steering_Kd" value="0.01" />
+        <param name="steering_Kd" value="0.2" />
+        <param name="brake_Kp" value="100.0" />
+        <param name="brake_Ki" value="0.0" />
+        <param name="brake_Kd" value="0.01" />
     </node>
 </launch>

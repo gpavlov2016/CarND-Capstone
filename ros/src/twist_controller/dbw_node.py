@@ -51,6 +51,9 @@ class DBWNode(object):
         steering_gains = Gains(rospy.get_param('~steering_Kp', 0.0),
                                rospy.get_param('~steering_Ki', 0.0),
                                rospy.get_param('~steering_Kd', 0.0))
+        brake_gains = Gains(rospy.get_param('~brake_Kp', 0.0),
+                            rospy.get_param('~brake_Ki', 0.0),
+                            rospy.get_param('~brake_Kd', 0.0))
 
         # Publishers
         self.steer_pub = rospy.Publisher('/vehicle/steering_cmd',
@@ -63,7 +66,8 @@ class DBWNode(object):
         # TODO: Pass params to `Controller` constructor
         self.controller = Controller(wheel_base=wheel_base, steer_ratio=steer_ratio, min_speed=1.0*0.447,
                                      max_lat_accel=max_lat_accel, max_steer_angle=max_steer_angle,
-                                     throttle_gains=throttle_gains, steering_gains=steering_gains)
+                                     throttle_gains=throttle_gains, steering_gains=steering_gains,
+                                     brake_gains=brake_gains)
 
         # Subscriptions
         rospy.Subscriber('/dbw_enabled', Bool, self.dbw_enabled_cb)

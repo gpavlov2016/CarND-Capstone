@@ -338,8 +338,8 @@ geometry_msgs::TwistStamped PurePursuit::outputTwist(geometry_msgs::Twist t) con
   double a = v * omega;
   ROS_INFO("lateral accel = %lf", a);
 
-  twist.twist.linear.x = fabs(a) > g_lateral_accel_limit ? max_v
-                    : v;
+  // twist.twist.linear.x = fabs(a) > g_lateral_accel_limit ? max_v
+                    // : v;
   twist.twist.angular.z = omega;
 
   return twist;

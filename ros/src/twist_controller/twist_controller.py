@@ -15,6 +15,7 @@ class Controller(object):
         # TODO: Implement
         self.throttle_pid = PID(kwargs['throttle_gains'])
         self.steering_pid = PID(kwargs['steering_gains'])
+        self.brake_pid = PID(kwargs['brake_gains'])
 
         self.last_t = None
         self.filter = LowPassFilter(0.2,0.1)
@@ -36,29 +37,24 @@ class Controller(object):
         dt = time.time() - self.last_t
         error_v = min(target_v.x, MAX_SPEED*ONE_MPH) - current_v.x
         throttle = self.throttle_pid.step(error_v, dt)
-        rospy.loginfo("throttle step: {}, error_v: {}".format(throttle, error_v))
-        rospy.loginfo("throttle step1: {}".format(throttle))
         if error_v < 0:
             # brake = -10.0*error_v   # Proportional braking
-            brake = -throttle*50
+            brake = self.brake_pid.step(-error_v, dt)
             brake = max(brake, 1.0)
             throttle = 0.0
-            rospy.loginfo("brake value: {}".format(brake))
         else:
             throttle = max(0.0, min(1.0, throttle))
             brake = 0.0
 
-        # Varun's
-        # With direct yaw controller.
-        # steer = self.yaw_control.get_steering(target_v.x, target_w.z, current_v.x)
-        # rospy.loginfo('target_w.z: {}, steer: {}'.format(target_w.z, steer))
-
-        # Jay's
-        # With PID
         error_yaw = target_w.z
+
         steer = self.steering_pid.step(error_yaw, dt)
-
         steer = self.filter.filt(steer)
+        # steer = 0.0
 
+        rospy.loginfo(("throttle: {} brake: {} current_v: {} " + \
+            "target_v: {} error_v: {} steer: {} error_yaw: {}").format(
+
+            throttle, brake, current_v.x, target_v.x, error_v, steer, error_yaw))
         self.last_t = time.time()
         return throttle, brake, steer
