@@ -5,7 +5,7 @@ This is the project repo for the final project of the Udacity Self-Driving Car N
 |--------------|---------------|----------|----------|--------------------------------|
 | __Team Lead__| Guy Pavlov | San Jose, CA | [linkedin.com/in/guypavlov](https://linkedin.com/in/guypavlov) | <img src="./imgs/GuyPavlov.jpg" alt="Guy Pavlov" width="150" height="150"> |
 |Member| Aaron | | | |
-|Member| Jay |  |  |  |
+|Member| Jay | San Jose, CA | [linkedin.com/in/jaycode](https://linkedin.com/in/jaycode) |  |
 |Member| Shubham | Santa Clara, CA | [linkedin.com/in/shubham1](https://linkedin.com/in/shubham1) | 
 
 # Installation and Usage
@@ -78,21 +78,37 @@ roslaunch launch/site.launch
 ```
 5. Confirm that traffic light detection works on real life images
 
-# Architechture
+# Architecture
 This is the system architecture for this project, we have not worked on obstacle detection as part of this implementation
 
 
 ![image](imgs/1.png)
 
 
-## Control
-This module handles vehicle's throttle, brake and steering based on the provided list of waypoints to follow. We have used PID controller to handle these three components. 
-
-Braking is done in the proportion of difference between current velocity and expected velocity. 
-
 ## Perception
 
-The perception part in this project is mainly concerened with detecting the state of traffic lights and publishing the results (red/yellow/green/none) to ROS node to be consumed by the waypoint_updater node.
+The perception part in this project is mainly concerned with detecting the state of traffic lights and publishing the results (red/yellow/green/none) to ROS node to be consumed by the waypoint_updater node.
+
+## Planning
+This module determines the vehicle path using various inputs like: vehicle's current position, velocity, and the state of various traffic lights along the way. This includes two main nodes: 
+
+1. **Waypoint loader:** This node loads the static waypoint data (CSV) and publishes to /base_waypoints 
+ 
+ 2. **Waypoint updater:** This is the main planning node. This node subscribes to three main topics:
+  - `current_pose`: The vehicle's current position.
+  - `base_waypoints`: List of all waypoints, and
+  - `traffic_waypoint`: Waypoint ID of the next red traffic light. Note that when the next traffic light is green, this node publishes `None` value. "Next" here is defined as "within 80 waypoints ahead of the vehicle", or in other words, that range is the visibility of our vehicle.
+ 
+    When a red traffic light is visible, the system sets all waypoints within 23 meters leading to the stopping line to have a gradually decreasing speed. The gradual decrease was calculated by a simple linear trajectory with a rate of `(1/n) * normal_speed` where `n` is the number of waypoints in that runway. So for example, if we had 23 waypoints covering the entire 23 meters runway, and the normal speed was 23 meters/second, then the speed at the waypoints would subsequently 23, 22, 21, down to 0 m/s right in front of the stopping line.
+
+    For emergencies, the 
+
+## Control
+This module handles vehicle's throttle, brake and steering based on the provided list of waypoints to follow. We have used a PID controller for each these three components.
+
+
+
+
 
 ### Traffic Light Detection and Classification
 
@@ -104,14 +120,7 @@ Part two, classification, requires an accurate capture of the traffic light. A s
 
 Upon classifying the image, the class is published to other nodes. After a set number of consecutive classifications, the vehicle is confident in the measurement and decides what to do based on the light color.
 
-## Planning
-This module decide the vehicle path using various inputs like: vehicle's current position, velocity and location, state of various traffic lights on the way. This includes two main nodes: 
-1. **Waypoint loader:** This loads the static waypoint data (CSV) and publishes to /base_waypoints 
- 
 
- 2. **Waypoint updater:** This is main planning node. This subscribes to three main topics, 1. current_pose, vehicle current position, 2. base_waypoints, list of all waypoints and 3. traffic_waypoint, location of traffic light. 
- 
-    If upcoming traffic light is red and vehicle is at stopping distance then system tries to stop the vehicle. In case of situation when there is no red light or vehicle is ahead of red light stop line, vehicle moves at max speed. 
  
 # Results
 

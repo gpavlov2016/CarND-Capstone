@@ -84,11 +84,12 @@ class WaypointUpdater(object):
             # How far before the stop line should we begin braking?
             "brake_start": 23.0,
 
+            # TODO:
             # When the car is at at least `overshoot` meters behind of 
             # the stop line, go full speed ahead (full_v) since there
             # is no turning back. Negative value means this point is ahead of
             # the line
-            "overshoot": -5.7,
+            # "overshoot": -5.7,
 
             "brake_v": 0.0,
             "brake_traj": (lambda i, wps: (i / float(len(wps))) * (self.config["v"]))
