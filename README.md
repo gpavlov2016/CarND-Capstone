@@ -6,7 +6,7 @@ This is the project repo for the final project of the Udacity Self-Driving Car N
 | __Team Lead__| Guy Pavlov | San Jose, CA | [linkedin.com/in/guypavlov](https://linkedin.com/in/guypavlov) | <img src="./imgs/GuyPavlov.jpg" alt="Guy Pavlov" width="150" height="150"> |
 |Member| Aaron | | | |
 |Member| Jay Teguh | Indonesia | [linkedin.com/in/jaycode](https://linkedin.com/in/jaycode) |  |
-|Member| Shubham | Santa Clara, CA | [linkedin.com/in/shubham1](https://linkedin.com/in/shubham1) | 
+|Member| Shubham | Santa Clara, CA | [linkedin.com/in/shubham1](https://linkedin.com/in/shubham1) | <img src="./imgs/shubham.jpg" alt="Shubham" width="150" height="150">
 
 # Installation and Usage
 
