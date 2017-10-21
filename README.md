@@ -2,7 +2,7 @@ This is the project repo for the final project of the Udacity Self-Driving Car N
 
 # Team introduction
 |              |     Name      | Location | Email | LinkedIn | Image |
-|--------------|---------------|----------|----------|--------------------------------|
+|--------------|---------------|----------|-------|----------|--------------------------------|
 | __Team Lead__| Guy Pavlov | San Jose, CA || [linkedin.com/in/guypavlov](https://linkedin.com/in/guypavlov) | <img src="./imgs/GuyPavlov.jpg" alt="Guy Pavlov" width="150" height="150"> |
 |Member| Aaron Smith | Denver, CO || [www.linkedin.com/in/aaron-lee-smith](www.linkedin.com/in/aaron-lee-smith) |  |
 |Member| Jay Teguh | Indonesia || [linkedin.com/in/jaycode](https://linkedin.com/in/jaycode) |  |
